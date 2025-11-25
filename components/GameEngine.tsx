@@ -1,7 +1,9 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, PlayerState, ScannableObject, Vector2, MineralType, MINERAL_RARITY_COLOR, Particle } from '../types';
 import { WORLD_RADIUS, STATION_RADIUS, MAX_ASTEROIDS, SHIP_STATS, COLORS, INITIAL_UPGRADES, ZOOM_MIN, ZOOM_MAX, ZOOM_SENSITIVITY, MINIMAP_SIZE, MINIMAP_MARGIN } from '../constants';
 import * as Vec from '../utils/math';
+import { audio } from '../utils/audio';
 
 interface GameEngineProps {
   gameState: GameState;
@@ -92,12 +94,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
 
   // Input Listeners
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => keys.current.add(e.code);
+    const handleKeyDown = (e: KeyboardEvent) => {
+        keys.current.add(e.code);
+        audio.init(); // Ensure audio context starts on user gesture
+    };
     const handleKeyUp = (e: KeyboardEvent) => keys.current.delete(e.code);
     const handleMouseMove = (e: MouseEvent) => {
       mousePos.current = { x: e.clientX, y: e.clientY };
     };
-    const handleMouseDown = () => { isMouseDown.current = true; };
+    const handleMouseDown = () => { 
+        isMouseDown.current = true; 
+        audio.init(); 
+    };
     const handleMouseUp = () => { isMouseDown.current = false; };
     const handleWheel = (e: WheelEvent) => {
       // Zoom logic
@@ -132,7 +140,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
     let animationFrameId: number;
 
     const render = () => {
+      const time = performance.now();
+      
       if (gameState !== GameState.PLAYING) {
+         audio.setThrust(false);
+         audio.setScan(false);
          if (gameState === GameState.MENU) return; 
       }
 
@@ -154,10 +166,13 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         if (keys.current.has('KeyA') || keys.current.has('ArrowLeft')) acc.x -= 1;
         if (keys.current.has('KeyD') || keys.current.has('ArrowRight')) acc.x += 1;
 
+        const isThrusting = (acc.x !== 0 || acc.y !== 0);
+        audio.setThrust(isThrusting);
+
         const isBoosting = keys.current.has('ShiftLeft');
         const finalThrust = isBoosting ? thrustPower * SHIP_STATS.boostMultiplier : thrustPower;
 
-        if (acc.x !== 0 || acc.y !== 0) {
+        if (isThrusting) {
           const normAcc = Vec.normalize(acc);
           shipVel.current = Vec.add(shipVel.current, Vec.mult(normAcc, finalThrust * 0.1));
           
@@ -233,6 +248,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                    const maxCargo = SHIP_STATS.baseCargo + (playerState.upgrades.cargoCapacityLevel * 2);
                    if (playerState.scannedItems.length < maxCargo) {
                      scanProgress.current += 0.016 * 60 * (scanSpeed / 100);
+                     audio.setScan(true, scanProgress.current);
+                     
                      if (scanProgress.current >= 1) {
                         ast.scanned = true;
                         setPlayerState(prev => ({
@@ -242,6 +259,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                         }));
                         scanTarget.current = null;
                         scanProgress.current = 0;
+                        audio.setScan(false);
+                        audio.playScanComplete();
+
                         for(let k=0; k<10; k++) {
                            particles.current.push({
                               id: Math.random().toString(),
@@ -254,6 +274,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                    }
                 } else {
                    scanProgress.current = Math.max(0, scanProgress.current - 0.05);
+                   audio.setScan(false);
                 }
                 break; 
              }
@@ -262,6 +283,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         if (!foundTarget) {
           scanTarget.current = null;
           scanProgress.current = 0;
+          audio.setScan(false);
         }
 
         particles.current.forEach(p => {
@@ -289,8 +311,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.strokeStyle = COLORS.grid;
       ctx.lineWidth = 1;
       const gridSize = 200;
-      // We need to calculate grid start based on camera pos
-      // The grid should appear fixed in world space
       const startX = Math.floor((camPos.current.x - (width/2)/zoomLevel.current) / gridSize) * gridSize;
       const endX = Math.ceil((camPos.current.x + (width/2)/zoomLevel.current) / gridSize) * gridSize;
       const startY = Math.floor((camPos.current.y - (height/2)/zoomLevel.current) / gridSize) * gridSize;
@@ -314,21 +334,148 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.arc(0, 0, WORLD_RADIUS, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Draw Station
-      ctx.fillStyle = COLORS.station;
+      // --- START STATION RENDER ---
+      ctx.save();
+      // Station Background Glow
+      const glowGrad = ctx.createRadialGradient(0, 0, STATION_RADIUS * 0.5, 0, 0, STATION_RADIUS * 1.5);
+      glowGrad.addColorStop(0, 'rgba(249, 115, 22, 0.1)');
+      glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glowGrad;
       ctx.beginPath();
-      ctx.arc(0, 0, STATION_RADIUS, 0, Math.PI * 2);
+      ctx.arc(0, 0, STATION_RADIUS * 1.5, 0, Math.PI * 2);
       ctx.fill();
-      // Station Details
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 5;
+
+      // 1. Outer Truss/Docking Ring (Fixed)
+      ctx.strokeStyle = '#334155'; // Slate 700
+      ctx.lineWidth = 16;
       ctx.beginPath();
-      ctx.arc(0, 0, STATION_RADIUS * 0.6, 0, Math.PI * 2);
+      ctx.arc(0, 0, STATION_RADIUS - 10, 0, Math.PI * 2);
       ctx.stroke();
+      
+      // Detail lines on truss
+      ctx.strokeStyle = '#1e293b'; // Slate 800
+      ctx.lineWidth = 2;
+      for(let i=0; i<36; i++) {
+        const ang = (Math.PI*2/36)*i;
+        const r1 = STATION_RADIUS - 18;
+        const r2 = STATION_RADIUS - 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang)*r1, Math.sin(ang)*r1);
+        ctx.lineTo(Math.cos(ang)*r2, Math.sin(ang)*r2);
+        ctx.stroke();
+      }
+
+      // 2. Rotating Habitat Ring
+      ctx.save();
+      const rotAngle = time * 0.0001; // Slow constant rotation
+      ctx.rotate(rotAngle);
+
+      // Ring connection
+      ctx.strokeStyle = '#c2410c'; // Dark Orange
+      ctx.lineWidth = 8;
       ctx.beginPath();
-      ctx.moveTo(-STATION_RADIUS, 0); ctx.lineTo(STATION_RADIUS, 0);
-      ctx.moveTo(0, -STATION_RADIUS); ctx.lineTo(0, STATION_RADIUS);
+      ctx.arc(0, 0, STATION_RADIUS * 0.8, 0, Math.PI*2);
       ctx.stroke();
+
+      // 3 Pods
+      const pods = 3;
+      for(let i=0; i<pods; i++) {
+         ctx.save();
+         const podAngle = (Math.PI * 2 / pods) * i;
+         ctx.rotate(podAngle);
+         
+         // Arm
+         ctx.fillStyle = '#475569';
+         ctx.fillRect(STATION_RADIUS * 0.5, -6, STATION_RADIUS * 0.3, 12);
+         
+         // Pod Body
+         ctx.translate(STATION_RADIUS * 0.8, 0);
+         ctx.fillStyle = '#1e293b'; // Slate 800
+         ctx.beginPath();
+         ctx.roundRect(-20, -15, 60, 30, 5);
+         ctx.fill();
+         ctx.strokeStyle = '#f97316';
+         ctx.lineWidth = 2;
+         ctx.stroke();
+
+         // Windows
+         ctx.fillStyle = '#e2e8f0'; 
+         ctx.fillRect(-10, -8, 8, 16);
+         ctx.fillRect(5, -8, 8, 16);
+         ctx.fillRect(20, -8, 8, 16);
+
+         // Blinking light on tip
+         if (Math.floor(time / 500) % 2 === 0) {
+            ctx.fillStyle = '#ef4444'; // Red
+            ctx.shadowColor = '#ef4444';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(45, 0, 4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+         }
+
+         ctx.restore();
+      }
+      ctx.restore(); // End rotating ring
+
+      // 3. Central Hub
+      ctx.fillStyle = '#0f172a'; // Dark slate
+      ctx.beginPath();
+      ctx.arc(0, 0, STATION_RADIUS * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#94a3b8'; // Slate 400
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Hub Detail - Inner circle
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(0, 0, STATION_RADIUS * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Stenciled Text
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = 'bold 24px "Courier New", monospace'; // Slightly smaller for longer name
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Slight shadow for readability
+      ctx.shadowColor = 'black';
+      ctx.shadowBlur = 4;
+      ctx.fillText("VOID PROSPECTOR", 0, -50);
+      
+      ctx.font = '12px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.8)';
+      ctx.fillText("SECURE DOCKING ALPHA", 0, -30);
+      ctx.restore();
+
+      // 5. Landing/Docking Lights (Sequential Blink)
+      const blinkPhase = Math.floor(time / 150) % 8; 
+      for(let i=0; i<8; i++) {
+        const angle = (Math.PI * 2 / 8) * i;
+        const isActive = i === blinkPhase;
+        ctx.save();
+        ctx.rotate(angle);
+        ctx.translate(STATION_RADIUS * 0.25, 0);
+        
+        ctx.fillStyle = isActive ? '#2dd4bf' : '#0f766e'; // Teal bright/dim
+        if (isActive) {
+           ctx.shadowColor = '#2dd4bf';
+           ctx.shadowBlur = 10;
+        }
+        ctx.beginPath();
+        ctx.moveTo(0, -3);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(0, 3);
+        ctx.fill();
+        
+        ctx.restore();
+      }
+
+      ctx.restore(); 
+      // --- END STATION RENDER ---
+
 
       // Draw Asteroids
       // Viewport culling bounds in world space
@@ -459,9 +606,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.beginPath();
       ctx.arc(0, 0, STATION_RADIUS * mapWorldScale, 0, Math.PI*2);
       ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
       // Draw Asteroids (Dots)
-      // Optimization: Only draw close ones? Or all? 300 is cheap for dots.
       asteroids.current.forEach(ast => {
         // Simple culling for minimap (if outside world bounds)
         // Draw scanned as bright teal, unscanned as dim slate
