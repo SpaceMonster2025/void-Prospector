@@ -12,6 +12,7 @@ export const UPGRADE_COSTS = {
   scannerRange: (level: number) => 200 * Math.pow(2, level),
   cargo: (level: number) => 300 * Math.pow(2, level),
   battery: (level: number) => 250 * Math.pow(2, level),
+  solar: (level: number) => 400 * Math.pow(1.8, level),
 };
 
 export const INITIAL_UPGRADES: Upgrades = {
@@ -20,6 +21,7 @@ export const INITIAL_UPGRADES: Upgrades = {
   scannerRangeLevel: 1,
   cargoCapacityLevel: 1,
   batteryLevel: 1,
+  solarChargingLevel: 1,
 };
 
 export const SHIP_STATS = {
@@ -34,9 +36,13 @@ export const SHIP_STATS = {
   energyPerLevel: 25,
   
   // Continuous Drain Rates (Energy per frame at 60fps)
-  thrustDrain: 0.02, // Reduced from 0.15 (~1.2 energy/sec)
-  idleDrain: 0.002,   // Reduced from 0.01 (~0.12 energy/sec)
-  scanDrain: 0.1,   // Reduced from 0.25 (~6 energy/sec)
+  thrustDrain: 0.02, 
+  idleDrain: 0.002,   
+  scanDrain: 0.1,   
+  
+  // Solar Recharge
+  baseSolarRecharge: 0.0005,
+  solarRechargePerLevel: 0.0005,
 };
 
 // View Settings

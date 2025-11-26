@@ -14,12 +14,15 @@ const App: React.FC = () => {
   const [playerState, setPlayerState] = useState<PlayerState>(() => {
      const saved = localStorage.getItem('void_prospector_save');
      if (saved) {
-        // Migration for saves without energy
+        // Migration logic
         const parsed = JSON.parse(saved);
         if (parsed.energy === undefined) {
             parsed.energy = SHIP_STATS.baseEnergy;
             parsed.maxEnergy = SHIP_STATS.baseEnergy;
             parsed.upgrades.batteryLevel = 1;
+        }
+        if (parsed.upgrades.solarChargingLevel === undefined) {
+            parsed.upgrades.solarChargingLevel = 1;
         }
         return parsed;
      }

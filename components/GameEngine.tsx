@@ -185,9 +185,17 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       // PHYSICS UPDATE ----------------------------
       if (gameState === GameState.PLAYING) {
         
-        // ENERGY DRAIN LOGIC
-        // 1. Idle Drain (Life support)
+        // ENERGY LOGIC
+        // 1. Solar Recharge (Only if systems active > 0)
+        // Note: We allow recharge to happen before drain calculation to give buffer?
+        // No, let's do it continuously.
+        const solarRate = SHIP_STATS.baseSolarRecharge + (playerState.upgrades.solarChargingLevel * SHIP_STATS.solarRechargePerLevel);
+        
         if (energyRef.current > 0) {
+            // Apply Solar
+            energyRef.current = Math.min(playerState.maxEnergy, energyRef.current + solarRate);
+
+            // Apply Idle Drain
             energyRef.current = Math.max(0, energyRef.current - SHIP_STATS.idleDrain);
         }
 
@@ -653,7 +661,30 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 3. Cockpit / Sensor Array (The "Eye")
+      // 3. Solar Panels (New)
+      ctx.fillStyle = '#1e3a8a'; // Blue solar color
+      // Right Panel
+      ctx.beginPath();
+      ctx.moveTo(-10, 15);
+      ctx.lineTo(-18, 10);
+      ctx.lineTo(-10, 4);
+      ctx.lineTo(0, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Left Panel
+      ctx.beginPath();
+      ctx.moveTo(-10, -15);
+      ctx.lineTo(-18, -10);
+      ctx.lineTo(-10, -4);
+      ctx.lineTo(0, -5);
+      ctx.fill();
+      ctx.stroke();
+
+
+      // 4. Cockpit / Sensor Array (The "Eye")
       // Placed towards the front
       ctx.fillStyle = '#0f172a'; // Dark mount
       ctx.beginPath();
@@ -673,7 +704,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         ctx.fill();
       }
 
-      // 4. Detail Lines / Flaps
+      // 5. Detail Lines / Flaps
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = 1;
       ctx.beginPath();

@@ -47,6 +47,7 @@ export interface Upgrades {
   scannerRangeLevel: number;
   cargoCapacityLevel: number;
   batteryLevel: number;
+  solarChargingLevel: number;
 }
 
 export interface Particle {

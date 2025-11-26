@@ -2,7 +2,7 @@
 import React from 'react';
 import { PlayerState, GameState, MINERAL_VALUES, MINERAL_RARITY_COLOR } from '../types';
 import { UPGRADE_COSTS, INITIAL_UPGRADES, SHIP_STATS } from '../constants';
-import { Rocket, ScanEye, Database, Zap, HardDrive, LogOut, Battery } from 'lucide-react';
+import { Rocket, ScanEye, Database, Zap, HardDrive, LogOut, Battery, Sun } from 'lucide-react';
 
 interface StationMenuProps {
   playerState: PlayerState;
@@ -33,6 +33,7 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
                      type === 'scannerSpeedLevel' ? UPGRADE_COSTS.scannerSpeed :
                      type === 'scannerRangeLevel' ? UPGRADE_COSTS.scannerRange :
                      type === 'batteryLevel' ? UPGRADE_COSTS.battery :
+                     type === 'solarChargingLevel' ? UPGRADE_COSTS.solar :
                      UPGRADE_COSTS.cargo;
 
     const cost = costFunc(currentLevel);
@@ -65,6 +66,7 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
     if (type === 'scannerSpeedLevel') return UPGRADE_COSTS.scannerSpeed(lvl);
     if (type === 'scannerRangeLevel') return UPGRADE_COSTS.scannerRange(lvl);
     if (type === 'batteryLevel') return UPGRADE_COSTS.battery(lvl);
+    if (type === 'solarChargingLevel') return UPGRADE_COSTS.solar(lvl);
     return UPGRADE_COSTS.cargo(lvl);
   };
 
@@ -166,6 +168,17 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
                   canAfford={playerState.credits >= getUpgradeCost('batteryLevel')}
                   onBuy={() => buyUpgrade('batteryLevel')}
                   description="Increases energy capacity, allowing for more scans per trip."
+                />
+
+                {/* Solar */}
+                <UpgradeCard 
+                  title="Solar Array" 
+                  level={playerState.upgrades.solarChargingLevel}
+                  cost={getUpgradeCost('solarChargingLevel')}
+                  icon={<Sun className="w-6 h-6 text-blue-400"/>}
+                  canAfford={playerState.credits >= getUpgradeCost('solarChargingLevel')}
+                  onBuy={() => buyUpgrade('solarChargingLevel')}
+                  description="Passive energy generation. Helps counteract idle drain."
                 />
 
                 {/* Scanner Range */}
