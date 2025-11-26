@@ -92,7 +92,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
 
       const radius = Vec.randomRange(20, 60);
       newAsteroids.push({
-        id: `ast_${i}`,
+        id: `ast_${i}_${playerState.sectorLevel}`, // Unique ID per sector
         position: pos,
         radius,
         type,
@@ -104,7 +104,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       });
     }
     asteroids.current = newAsteroids;
-  }, []);
+  }, [playerState.sectorLevel]); // Re-run if sector level changes
 
   // Initialization
   useEffect(() => {
@@ -165,12 +165,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       
       if (gameState !== GameState.PLAYING) {
          if (gameState === GameState.MENU) return; 
-         // If Game Over, stop loop logic but render maybe? 
-         // For now, if game over, just stop audio and return.
-         if (gameState === GameState.GAME_OVER) {
+         // Allow rendering in background for station/cleared states, but stop physics input
+         if (gameState === GameState.GAME_OVER || gameState === GameState.SECTOR_CLEARED) {
              audio.setThrust(false);
              audio.setScan(false);
-             return;
+             // Keep rendering? Maybe just return to freeze frame is easier for now
+             if (gameState === GameState.GAME_OVER) return;
          }
       }
 
@@ -186,9 +186,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       if (gameState === GameState.PLAYING) {
         
         // ENERGY LOGIC
-        // 1. Solar Recharge (Only if systems active > 0)
-        // Note: We allow recharge to happen before drain calculation to give buffer?
-        // No, let's do it continuously.
         const solarRate = SHIP_STATS.baseSolarRecharge + (playerState.upgrades.solarChargingLevel * SHIP_STATS.solarRechargePerLevel);
         
         if (energyRef.current > 0) {
@@ -251,6 +248,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         const distToStation = Vec.mag(shipPos.current);
         if (distToStation < STATION_RADIUS + 50 && Vec.mag(shipVel.current) < 2) {
            if (keys.current.has('KeyE')) {
+             energyRef.current = playerState.maxEnergy; // Ensure ref is updated immediately
              setPlayerState(prev => ({
                  ...prev,
                  energy: prev.maxEnergy // RECHARGE
@@ -316,12 +314,24 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                             
                             if (scanProgress.current >= 1) {
                                 ast.scanned = true;
+                                
+                                // Calculate new state values
+                                const newSectorProgress = playerState.sectorProgress + 1;
+                                const isSectorComplete = newSectorProgress >= MAX_ASTEROIDS;
+
                                 setPlayerState(prev => ({
                                     ...prev,
                                     scannedItems: [...prev.scannedItems, ast],
                                     totalDiscoveries: prev.totalDiscoveries + 1,
-                                    energy: energyRef.current // Sync energy on successful event
+                                    energy: energyRef.current, // Sync energy on successful event
+                                    sectorProgress: newSectorProgress
                                 }));
+
+                                if (isSectorComplete) {
+                                    setGameState(GameState.SECTOR_CLEARED);
+                                    audio.setScan(false);
+                                }
+
                                 scanTarget.current = null;
                                 scanProgress.current = 0;
                                 audio.setScan(false);
@@ -372,9 +382,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         // to keep UI updated without killing FPS
         if (frameCount % 30 === 0) {
             setPlayerState(prev => {
-                // Only update if difference is significant to avoid re-renders?
-                // Actually React handles identity checks, but object is new.
-                // Just sync.
                 return { ...prev, energy: energyRef.current };
             });
         }
@@ -839,7 +846,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [gameState, playerState.upgrades, playerState.scannedItems, playerState.energy]);
+  }, [gameState, playerState.upgrades, playerState.scannedItems, playerState.energy, playerState.sectorLevel]); // Dependencies
 
   const distToStation = Vec.mag(shipPos.current);
   const showDockPrompt = distToStation < STATION_RADIUS + 50 && gameState === GameState.PLAYING && energyRef.current > 0;

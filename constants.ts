@@ -5,6 +5,7 @@ export const WORLD_RADIUS = 5000;
 export const STATION_RADIUS = 300;
 export const MAX_ASTEROIDS = 300;
 export const TOW_COST = 500;
+export const SECTOR_BONUS_UNIT = 150; // Credits per "work unit" for clearing sector
 
 export const UPGRADE_COSTS = {
   engine: (level: number) => 100 * Math.pow(2, level),
@@ -25,7 +26,7 @@ export const INITIAL_UPGRADES: Upgrades = {
 };
 
 export const SHIP_STATS = {
-  baseSpeed: 5,
+  baseSpeed: 10,
   boostMultiplier: 1.8,
   friction: 0.96,
   rotationSpeed: 0.1,

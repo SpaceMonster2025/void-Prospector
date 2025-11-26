@@ -4,8 +4,8 @@ import GameEngine from './components/GameEngine';
 import StationMenu from './components/StationMenu';
 import UIOverlay from './components/UIOverlay';
 import { GameState, PlayerState } from './types';
-import { INITIAL_UPGRADES, SHIP_STATS } from './constants';
-import { TriangleAlert, RefreshCw } from 'lucide-react';
+import { INITIAL_UPGRADES, SHIP_STATS, SECTOR_BONUS_UNIT, MAX_ASTEROIDS } from './constants';
+import { TriangleAlert, RefreshCw, Zap, Medal } from 'lucide-react';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -24,6 +24,10 @@ const App: React.FC = () => {
         if (parsed.upgrades.solarChargingLevel === undefined) {
             parsed.upgrades.solarChargingLevel = 1;
         }
+        if (parsed.sectorLevel === undefined) {
+            parsed.sectorLevel = 1;
+            parsed.sectorProgress = 0;
+        }
         return parsed;
      }
      return {
@@ -33,6 +37,8 @@ const App: React.FC = () => {
        totalDiscoveries: 0,
        energy: SHIP_STATS.baseEnergy,
        maxEnergy: SHIP_STATS.baseEnergy,
+       sectorLevel: 1,
+       sectorProgress: 0,
      };
   });
 
@@ -57,7 +63,24 @@ const App: React.FC = () => {
        totalDiscoveries: 0,
        energy: SHIP_STATS.baseEnergy,
        maxEnergy: SHIP_STATS.baseEnergy,
+       sectorLevel: 1,
+       sectorProgress: 0,
       });
+      setGameState(GameState.PLAYING);
+  };
+
+  const handleNextSector = () => {
+      // Calculate Bonus: (Time Required * Objects) approx logic
+      // Simplification: We award a massive bonus based on the full clear
+      const bonus = SECTOR_BONUS_UNIT * MAX_ASTEROIDS;
+      
+      setPlayerState(prev => ({
+          ...prev,
+          credits: prev.credits + bonus,
+          sectorLevel: prev.sectorLevel + 1,
+          sectorProgress: 0,
+          energy: prev.maxEnergy, // Free recharge for winning
+      }));
       setGameState(GameState.PLAYING);
   };
 
@@ -113,6 +136,43 @@ const App: React.FC = () => {
              Use WASD to Fly • MOUSE to Aim • CLICK to Scan
            </div>
         </div>
+      )}
+
+      {/* Sector Cleared Screen */}
+      {gameState === GameState.SECTOR_CLEARED && (
+          <div className="absolute inset-0 bg-teal-950/90 flex flex-col items-center justify-center text-center z-50 animate-in fade-in duration-500">
+             <Medal className="w-24 h-24 text-yellow-400 mb-6 animate-pulse" />
+             <h1 className="text-5xl font-bold text-teal-400 mb-2 tracking-widest">SECTOR MAPPED</h1>
+             <p className="text-teal-200 text-xl mb-8 max-w-md">
+                 100% Analysis Complete. Regional data compiled.
+             </p>
+             
+             <div className="bg-black/50 p-8 rounded-lg mb-8 border border-teal-500/50 shadow-2xl min-w-[300px]">
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center text-slate-300">
+                        <span>Sector Level</span>
+                        <span className="text-white font-bold">{playerState.sectorLevel}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-300">
+                        <span>Objects Scanned</span>
+                        <span className="text-white font-bold">{MAX_ASTEROIDS}</span>
+                    </div>
+                    <div className="h-px bg-slate-700 my-4"></div>
+                    <div className="flex justify-between items-center text-yellow-400 text-lg">
+                        <span>Completion Bonus</span>
+                        <span className="font-bold">{(SECTOR_BONUS_UNIT * MAX_ASTEROIDS).toLocaleString()} CR</span>
+                    </div>
+                </div>
+             </div>
+
+             <button 
+                onClick={handleNextSector}
+                className="flex items-center px-8 py-4 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded shadow-[0_0_20px_rgba(45,212,191,0.5)] transition-all transform hover:scale-105"
+             >
+                <Zap className="w-5 h-5 mr-2" /> INITIATE HYPERJUMP
+             </button>
+             <div className="mt-4 text-slate-500 text-sm">Jumping will generate a new sector map.</div>
+          </div>
       )}
 
       {/* Game Over Screen */}

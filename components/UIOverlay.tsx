@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { PlayerState, ScannableObject, MINERAL_RARITY_COLOR, GameState } from '../types';
-import { SHIP_STATS, TOW_COST } from '../constants';
-import { Database, Zap, Battery, TriangleAlert, Radio } from 'lucide-react';
+import { SHIP_STATS, TOW_COST, MAX_ASTEROIDS } from '../constants';
+import { Database, Zap, Battery, TriangleAlert, Radio, Radar } from 'lucide-react';
 
 interface UIOverlayProps {
   playerState: PlayerState;
@@ -18,6 +18,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ playerState, setPlayerState, setG
   const energyPercent = Math.max(0, (playerState.energy / playerState.maxEnergy) * 100);
   const isDead = playerState.energy <= 0;
   const canAffordRescue = playerState.credits >= TOW_COST;
+
+  const sectorScanPercent = (playerState.sectorProgress / MAX_ASTEROIDS) * 100;
 
   const handleRescue = () => {
       if (setPlayerState && setGameState && canAffordRescue) {
@@ -39,6 +41,26 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ playerState, setPlayerState, setG
 
   return (
     <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between font-mono">
+      
+      {/* Top Center: Sector Progress */}
+      <div className="absolute top-6 left-1/2 transform -translate-x-1/2 w-96 z-10">
+         <div className="bg-slate-900/80 border border-teal-800 p-2 px-4 rounded backdrop-blur-sm">
+            <div className="flex justify-between items-center text-xs text-teal-400 mb-1">
+                <span className="flex items-center"><Radar className="w-3 h-3 mr-1"/> SECTOR ANALYSIS</span>
+                <span className="font-bold">{Math.floor(sectorScanPercent)}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-teal-400 shadow-[0_0_10px_rgba(45,212,191,0.5)] transition-all duration-500"
+                  style={{ width: `${sectorScanPercent}%` }}
+                ></div>
+            </div>
+            <div className="text-[10px] text-center text-slate-500 mt-1 uppercase tracking-wider">
+               {playerState.sectorProgress} / {MAX_ASTEROIDS} Celestial Bodies Mapped
+            </div>
+         </div>
+      </div>
+
       {/* Top Left: Status */}
       <div className="flex flex-col space-y-4">
          

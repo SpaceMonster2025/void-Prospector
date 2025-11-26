@@ -6,6 +6,7 @@ export enum GameState {
   PLAYING = 'PLAYING',
   STATION = 'STATION',
   GAME_OVER = 'GAME_OVER',
+  SECTOR_CLEARED = 'SECTOR_CLEARED',
 }
 
 export enum MineralType {
@@ -39,6 +40,8 @@ export interface PlayerState {
   upgrades: Upgrades;
   scannedItems: ScannableObject[]; // Items currently in buffer (risk)
   totalDiscoveries: number;
+  sectorLevel: number;
+  sectorProgress: number; // Number of asteroids scanned in current sector
 }
 
 export interface Upgrades {
