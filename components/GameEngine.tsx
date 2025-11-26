@@ -199,6 +199,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         const distToStation = Vec.mag(shipPos.current);
         if (distToStation < STATION_RADIUS + 50 && Vec.mag(shipVel.current) < 2) {
            if (keys.current.has('KeyE')) {
+             setPlayerState(prev => ({
+                 ...prev,
+                 energy: prev.maxEnergy // RECHARGE
+             }));
              setGameState(GameState.STATION);
              shipVel.current = {x:0, y:0};
              shipPos.current = {x:0, y: STATION_RADIUS - 50};
@@ -246,7 +250,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                 
                 if (isMouseDown.current) {
                    const maxCargo = SHIP_STATS.baseCargo + (playerState.upgrades.cargoCapacityLevel * 2);
-                   if (playerState.scannedItems.length < maxCargo) {
+                   // CHECK ENERGY & CARGO
+                   if (playerState.scannedItems.length < maxCargo && playerState.energy >= SHIP_STATS.scanEnergyCost) {
+                     
                      scanProgress.current += 0.016 * 60 * (scanSpeed / 100);
                      audio.setScan(true, scanProgress.current);
                      
@@ -255,7 +261,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                         setPlayerState(prev => ({
                            ...prev,
                            scannedItems: [...prev.scannedItems, ast],
-                           totalDiscoveries: prev.totalDiscoveries + 1
+                           totalDiscoveries: prev.totalDiscoveries + 1,
+                           energy: prev.energy - SHIP_STATS.scanEnergyCost // DEDUCT ENERGY
                         }));
                         scanTarget.current = null;
                         scanProgress.current = 0;
@@ -271,6 +278,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
                            });
                         }
                      }
+                   } else {
+                       // Not enough energy or cargo full
+                       audio.setScan(false);
                    }
                 } else {
                    scanProgress.current = Math.max(0, scanProgress.current - 0.05);
@@ -493,8 +503,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
          ctx.translate(ast.position.x, ast.position.y);
          ctx.rotate(ast.rotation);
          
-         ctx.fillStyle = ast.scanned ? '#334155' : MINERAL_RARITY_COLOR[ast.type];
-         ctx.strokeStyle = ast.scanned ? '#2dd4bf' : '#000000';
+         // COLOR LOGIC: UNIFORM DARK PURPLE UNTIL SCANNED
+         ctx.fillStyle = ast.scanned ? MINERAL_RARITY_COLOR[ast.type] : COLORS.asteroidUnscanned;
+         ctx.strokeStyle = ast.scanned ? '#2dd4bf' : '#0f172a'; // Bright teal stroke if scanned, dark if not
          ctx.lineWidth = 2;
 
          ctx.beginPath();
@@ -528,32 +539,105 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
          ctx.globalAlpha = 1.0;
       });
 
-      // Draw Drone
+      // Draw Drone (Updated Sleek Design)
       ctx.save();
       ctx.translate(shipPos.current.x, shipPos.current.y);
       ctx.rotate(shipAngle.current);
       
-      // Drone Body
-      ctx.fillStyle = '#e2e8f0'; // slate-200
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 20, 15, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Dome/Eye
-      ctx.fillStyle = '#0ea5e9'; // sky-500
-      ctx.beginPath();
-      ctx.arc(8, 0, 8, 0, Math.PI * 2);
-      ctx.fill();
+      const isThrusting = (keys.current.has('KeyW') || keys.current.has('ArrowUp'));
 
-      // Engine Glow
-      if (keys.current.has('KeyW') || keys.current.has('ArrowUp')) {
-         ctx.fillStyle = '#f97316';
+      // 1. Engine Thrust (Cone)
+      if (isThrusting) {
+         ctx.fillStyle = '#f97316'; // Orange core
+         // Flicker effect
+         const flicker = Math.random() * 5;
+         const length = 25 + flicker;
+         
          ctx.beginPath();
-         ctx.moveTo(-20, -5);
-         ctx.lineTo(-35, 0);
-         ctx.lineTo(-20, 5);
+         ctx.moveTo(-20, -6); // Engine top
+         ctx.lineTo(-20 - length, 0); // Tip
+         ctx.lineTo(-20, 6); // Engine bottom
+         ctx.fill();
+
+         // Inner blue flame for "high tech" feel
+         ctx.fillStyle = '#fff'; 
+         ctx.beginPath();
+         ctx.moveTo(-20, -3);
+         ctx.lineTo(-20 - (length * 0.5), 0);
+         ctx.lineTo(-20, 3);
          ctx.fill();
       }
+
+      // 2. Main Hull
+      ctx.fillStyle = '#e2e8f0'; // Base Slate
+      ctx.beginPath();
+      ctx.moveTo(25, 0); // Nose
+      ctx.lineTo(-10, 15); // Right Wing Tip
+      ctx.lineTo(-20, 8); // Right Rear
+      ctx.lineTo(-20, -8); // Left Rear
+      ctx.lineTo(-10, -15); // Left Wing Tip
+      ctx.closePath();
+      ctx.fill();
+
+      // Hull shading/outline
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 3. Cockpit / Sensor Array (The "Eye")
+      // Placed towards the front
+      ctx.fillStyle = '#0f172a'; // Dark mount
+      ctx.beginPath();
+      ctx.arc(5, 0, 6, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle = '#0ea5e9'; // Cyan lens
+      ctx.beginPath();
+      ctx.arc(5, 0, 4, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Lens reflection
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(7, -1, 1.5, 0, Math.PI*2);
+      ctx.fill();
+
+      // 4. Detail Lines / Flaps
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      // Right wing detail
+      ctx.moveTo(0, 5);
+      ctx.lineTo(-10, 15);
+      // Left wing detail
+      ctx.moveTo(0, -5);
+      ctx.lineTo(-10, -15);
+      // Center line
+      ctx.moveTo(15, 0);
+      ctx.lineTo(-15, 0);
+      ctx.stroke();
+
+      // Rear Engine Grille
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-22, -6, 4, 12);
+
+      // Nav Lights
+      // Left/Port (Red)
+      ctx.fillStyle = '#ef4444';
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 5;
+      ctx.beginPath();
+      ctx.arc(-10, -15, 1.5, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Right/Starboard (Green)
+      ctx.fillStyle = '#22c55e';
+      ctx.shadowColor = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(-10, 15, 1.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
       ctx.restore();
       
       // Draw Scan FX
@@ -651,7 +735,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [gameState, playerState.upgrades, playerState.scannedItems]);
+  }, [gameState, playerState.upgrades, playerState.scannedItems, playerState.energy]); // Added playerState.energy dep
 
   const distToStation = Vec.mag(shipPos.current);
   const showDockPrompt = distToStation < STATION_RADIUS + 50 && gameState === GameState.PLAYING;

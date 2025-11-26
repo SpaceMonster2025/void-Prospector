@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { PlayerState, ScannableObject, MINERAL_RARITY_COLOR } from '../types';
 import { SHIP_STATS } from '../constants';
-import { Database, Zap } from 'lucide-react';
+import { Database, Zap, Battery } from 'lucide-react';
 
 interface UIOverlayProps {
   playerState: PlayerState;
@@ -12,10 +13,14 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ playerState }) => {
   const currentCargo = playerState.scannedItems.length;
   const cargoPercent = (currentCargo / maxCargo) * 100;
 
+  const energyPercent = (playerState.energy / playerState.maxEnergy) * 100;
+
   return (
     <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between font-mono">
-      {/* Top Left: Cargo / Data Buffer */}
-      <div className="flex items-start">
+      {/* Top Left: Status */}
+      <div className="flex flex-col space-y-4">
+         
+         {/* Cargo / Data Buffer */}
          <div className="bg-slate-900/80 border border-teal-500/50 p-4 rounded backdrop-blur-sm w-64">
             <div className="flex items-center justify-between mb-2 text-teal-400">
                <span className="flex items-center font-bold"><Database className="w-4 h-4 mr-2"/> DATA BUFFER</span>
@@ -40,6 +45,23 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ playerState }) => {
                {playerState.scannedItems.length === 0 && <span className="text-xs text-slate-500 italic">Buffer Empty</span>}
             </div>
          </div>
+
+         {/* Energy Gauge */}
+         <div className="bg-slate-900/80 border border-yellow-500/50 p-4 rounded backdrop-blur-sm w-64">
+             <div className="flex items-center justify-between mb-2 text-yellow-400">
+                <span className="flex items-center font-bold"><Battery className="w-4 h-4 mr-2"/> ENERGY CELL</span>
+                <span className="text-xs">{Math.floor(playerState.energy)} / {playerState.maxEnergy}</span>
+             </div>
+             <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 ${energyPercent < 20 ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'}`} 
+                  style={{ width: `${energyPercent}%` }}
+                ></div>
+             </div>
+             {playerState.energy < SHIP_STATS.scanEnergyCost && (
+                 <div className="text-red-500 text-xs mt-2 font-bold animate-pulse">LOW ENERGY - DOCK REQUIRED</div>
+             )}
+         </div>
       </div>
 
       {/* Top Right: Credits */}
@@ -60,8 +82,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ playerState }) => {
       <div className="bg-slate-900/50 p-3 rounded text-xs text-slate-400 backdrop-blur-sm">
          <div><span className="text-white font-bold">WASD</span> THRUST</div>
          <div><span className="text-white font-bold">SHIFT</span> BOOST</div>
-         <div><span className="text-white font-bold">L-CLICK</span> SCAN (HOLD)</div>
-         <div><span className="text-white font-bold">E</span> DOCK (NEAR STATION)</div>
+         <div><span className="text-white font-bold">L-CLICK</span> SCAN (COSTS ENERGY)</div>
+         <div><span className="text-white font-bold">E</span> DOCK (RECHARGE)</div>
       </div>
     </div>
   );

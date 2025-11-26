@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { PlayerState, GameState, MINERAL_VALUES, MINERAL_RARITY_COLOR } from '../types';
-import { UPGRADE_COSTS, INITIAL_UPGRADES } from '../constants';
-import { Rocket, ScanEye, Database, Zap, HardDrive, LogOut } from 'lucide-react';
+import { UPGRADE_COSTS, INITIAL_UPGRADES, SHIP_STATS } from '../constants';
+import { Rocket, ScanEye, Database, Zap, HardDrive, LogOut, Battery } from 'lucide-react';
 
 interface StationMenuProps {
   playerState: PlayerState;
@@ -26,30 +27,35 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
 
   const buyUpgrade = (type: keyof typeof INITIAL_UPGRADES) => {
     const currentLevel = playerState.upgrades[type];
-    const costMap = {
-      engineLevel: UPGRADE_COSTS.engine,
-      scannerSpeedLevel: UPGRADE_COSTS.scannerSpeed,
-      scannerRangeLevel: UPGRADE_COSTS.scannerRange,
-      cargoCapacityLevel: UPGRADE_COSTS.cargo,
-    };
     
     // Map the string key to the function
     const costFunc = type === 'engineLevel' ? UPGRADE_COSTS.engine : 
                      type === 'scannerSpeedLevel' ? UPGRADE_COSTS.scannerSpeed :
                      type === 'scannerRangeLevel' ? UPGRADE_COSTS.scannerRange :
+                     type === 'batteryLevel' ? UPGRADE_COSTS.battery :
                      UPGRADE_COSTS.cargo;
 
     const cost = costFunc(currentLevel);
 
     if (playerState.credits >= cost) {
-      setPlayerState(prev => ({
-        ...prev,
-        credits: prev.credits - cost,
-        upgrades: {
-          ...prev.upgrades,
-          [type]: currentLevel + 1
+      setPlayerState(prev => {
+        const newState = {
+            ...prev,
+            credits: prev.credits - cost,
+            upgrades: {
+            ...prev.upgrades,
+            [type]: currentLevel + 1
+            }
+        };
+        
+        // Apply battery boost immediately if buying battery
+        if (type === 'batteryLevel') {
+            newState.maxEnergy = SHIP_STATS.baseEnergy + ((currentLevel) * SHIP_STATS.energyPerLevel);
+            newState.energy = newState.maxEnergy; // Refill on upgrade
         }
-      }));
+
+        return newState;
+      });
     }
   };
 
@@ -58,12 +64,13 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
     if (type === 'engineLevel') return UPGRADE_COSTS.engine(lvl);
     if (type === 'scannerSpeedLevel') return UPGRADE_COSTS.scannerSpeed(lvl);
     if (type === 'scannerRangeLevel') return UPGRADE_COSTS.scannerRange(lvl);
+    if (type === 'batteryLevel') return UPGRADE_COSTS.battery(lvl);
     return UPGRADE_COSTS.cargo(lvl);
   };
 
   return (
     <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-8 text-slate-100 font-mono">
-      <div className="w-full max-w-5xl bg-slate-800 border border-slate-600 rounded-xl shadow-2xl overflow-hidden flex flex-col h-[80vh]">
+      <div className="w-full max-w-5xl bg-slate-800 border border-slate-600 rounded-xl shadow-2xl overflow-hidden flex flex-col h-[85vh]">
         
         {/* Header */}
         <header className="bg-slate-950 p-6 flex justify-between items-center border-b border-slate-700">
@@ -116,6 +123,7 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
                 <div className="bg-slate-900 p-4 rounded text-sm space-y-2">
                     <div className="flex justify-between"><span>Total Discoveries:</span> <span className="text-white">{playerState.totalDiscoveries}</span></div>
                     <div className="flex justify-between"><span>Clearance Level:</span> <span className="text-white">Alpha</span></div>
+                    <div className="flex justify-between"><span>Max Energy:</span> <span className="text-yellow-400">{playerState.maxEnergy}</span></div>
                 </div>
             </div>
           </div>
@@ -149,6 +157,17 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
                   description="Reduces time required to lock onto a target."
                 />
 
+                {/* Battery */}
+                <UpgradeCard 
+                  title="Energy Cells" 
+                  level={playerState.upgrades.batteryLevel}
+                  cost={getUpgradeCost('batteryLevel')}
+                  icon={<Battery className="w-6 h-6 text-yellow-500"/>}
+                  canAfford={playerState.credits >= getUpgradeCost('batteryLevel')}
+                  onBuy={() => buyUpgrade('batteryLevel')}
+                  description="Increases energy capacity, allowing for more scans per trip."
+                />
+
                 {/* Scanner Range */}
                 <UpgradeCard 
                   title="Long-Range Sensors" 
@@ -176,6 +195,7 @@ const StationMenu: React.FC<StationMenuProps> = ({ playerState, setPlayerState, 
 
         {/* Footer */}
         <footer className="bg-slate-950 p-4 border-t border-slate-700 flex justify-end">
+           <div className="mr-auto self-center text-slate-500 text-sm">Energy Recharged. Systems Nominal.</div>
            <button 
              onClick={() => setGameState(GameState.PLAYING)}
              className="px-8 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded flex items-center"

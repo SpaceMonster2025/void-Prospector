@@ -1,3 +1,4 @@
+
 export type Vector2 = { x: number; y: number };
 
 export enum GameState {
@@ -33,6 +34,8 @@ export interface ScannableObject {
 
 export interface PlayerState {
   credits: number;
+  energy: number;
+  maxEnergy: number;
   upgrades: Upgrades;
   scannedItems: ScannableObject[]; // Items currently in buffer (risk)
   totalDiscoveries: number;
@@ -43,6 +46,7 @@ export interface Upgrades {
   scannerSpeedLevel: number;
   scannerRangeLevel: number;
   cargoCapacityLevel: number;
+  batteryLevel: number;
 }
 
 export interface Particle {

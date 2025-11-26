@@ -1,3 +1,4 @@
+
 import { Upgrades } from './types';
 
 export const WORLD_RADIUS = 5000;
@@ -9,6 +10,7 @@ export const UPGRADE_COSTS = {
   scannerSpeed: (level: number) => 150 * Math.pow(2, level),
   scannerRange: (level: number) => 200 * Math.pow(2, level),
   cargo: (level: number) => 300 * Math.pow(2, level),
+  battery: (level: number) => 250 * Math.pow(2, level),
 };
 
 export const INITIAL_UPGRADES: Upgrades = {
@@ -16,6 +18,7 @@ export const INITIAL_UPGRADES: Upgrades = {
   scannerSpeedLevel: 1,
   scannerRangeLevel: 1,
   cargoCapacityLevel: 1,
+  batteryLevel: 1,
 };
 
 export const SHIP_STATS = {
@@ -26,6 +29,9 @@ export const SHIP_STATS = {
   baseScanRange: 300,
   baseScanSpeed: 0.5, // percent per second
   baseCargo: 5,
+  baseEnergy: 100,
+  energyPerLevel: 25,
+  scanEnergyCost: 20,
 };
 
 // View Settings
@@ -44,4 +50,5 @@ export const COLORS = {
   hudText: '#ccfbf1', // teal-100
   scanner: 'rgba(45, 212, 191, 0.2)', // teal-400 with opacity
   scannerActive: 'rgba(249, 115, 22, 0.3)', // orange-500 with opacity
+  asteroidUnscanned: '#4c1d95', // violet-900 (Dark Purple)
 };

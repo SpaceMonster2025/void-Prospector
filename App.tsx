@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import GameEngine from './components/GameEngine';
 import StationMenu from './components/StationMenu';
 import UIOverlay from './components/UIOverlay';
 import { GameState, PlayerState } from './types';
-import { INITIAL_UPGRADES } from './constants';
+import { INITIAL_UPGRADES, SHIP_STATS } from './constants';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -12,13 +13,22 @@ const App: React.FC = () => {
   const [playerState, setPlayerState] = useState<PlayerState>(() => {
      const saved = localStorage.getItem('void_prospector_save');
      if (saved) {
-        return JSON.parse(saved);
+        // Migration for saves without energy
+        const parsed = JSON.parse(saved);
+        if (parsed.energy === undefined) {
+            parsed.energy = SHIP_STATS.baseEnergy;
+            parsed.maxEnergy = SHIP_STATS.baseEnergy;
+            parsed.upgrades.batteryLevel = 1;
+        }
+        return parsed;
      }
      return {
        credits: 0,
        upgrades: INITIAL_UPGRADES,
        scannedItems: [],
        totalDiscoveries: 0,
+       energy: SHIP_STATS.baseEnergy,
+       maxEnergy: SHIP_STATS.baseEnergy,
      };
   });
 
