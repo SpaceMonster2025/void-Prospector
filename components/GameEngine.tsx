@@ -25,6 +25,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
   const asteroids = useRef<ScannableObject[]>([]);
   const particles = useRef<Particle[]>([]);
   
+  // Energy Ref (to prevent excessive state updates during continuous drain)
+  const energyRef = useRef<number>(playerState.energy);
+  
   // Inputs
   const keys = useRef<Set<string>>(new Set());
   const mousePos = useRef<Vector2>({ x: 0, y: 0 });
@@ -33,6 +36,22 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
   // Scanning State
   const scanTarget = useRef<ScannableObject | null>(null);
   const scanProgress = useRef<number>(0);
+
+  // Sync energy ref when player state changes (e.g. from recharge)
+  useEffect(() => {
+     energyRef.current = playerState.energy;
+  }, [playerState.energy]);
+
+  // Handle Rescue / Station Entry Reset
+  useEffect(() => {
+      if (gameState === GameState.STATION) {
+          // If we are at station, force dock position to ensure rescue logic works visually
+          shipPos.current = { x: 0, y: STATION_RADIUS - 50 };
+          shipVel.current = { x: 0, y: 0 };
+          audio.setThrust(false);
+          audio.setScan(false);
+      }
+  }, [gameState]);
 
   // Helper to init world
   const initWorld = useCallback(() => {
@@ -138,14 +157,21 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
     if (!ctx) return;
 
     let animationFrameId: number;
+    let frameCount = 0;
 
     const render = () => {
       const time = performance.now();
+      frameCount++;
       
       if (gameState !== GameState.PLAYING) {
-         audio.setThrust(false);
-         audio.setScan(false);
          if (gameState === GameState.MENU) return; 
+         // If Game Over, stop loop logic but render maybe? 
+         // For now, if game over, just stop audio and return.
+         if (gameState === GameState.GAME_OVER) {
+             audio.setThrust(false);
+             audio.setScan(false);
+             return;
+         }
       }
 
       const width = window.innerWidth;
@@ -158,16 +184,34 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
 
       // PHYSICS UPDATE ----------------------------
       if (gameState === GameState.PLAYING) {
+        
+        // ENERGY DRAIN LOGIC
+        // 1. Idle Drain (Life support)
+        if (energyRef.current > 0) {
+            energyRef.current = Math.max(0, energyRef.current - SHIP_STATS.idleDrain);
+        }
+
+        const hasEnergy = energyRef.current > 0;
+
         // Thrust
         const acc = { x: 0, y: 0 };
         const thrustPower = SHIP_STATS.baseSpeed * (0.1 + (playerState.upgrades.engineLevel * 0.02));
-        if (keys.current.has('KeyW') || keys.current.has('ArrowUp')) acc.y -= 1;
-        if (keys.current.has('KeyS') || keys.current.has('ArrowDown')) acc.y += 1;
-        if (keys.current.has('KeyA') || keys.current.has('ArrowLeft')) acc.x -= 1;
-        if (keys.current.has('KeyD') || keys.current.has('ArrowRight')) acc.x += 1;
+        
+        // Only allow control if has energy
+        if (hasEnergy) {
+            if (keys.current.has('KeyW') || keys.current.has('ArrowUp')) acc.y -= 1;
+            if (keys.current.has('KeyS') || keys.current.has('ArrowDown')) acc.y += 1;
+            if (keys.current.has('KeyA') || keys.current.has('ArrowLeft')) acc.x -= 1;
+            if (keys.current.has('KeyD') || keys.current.has('ArrowRight')) acc.x += 1;
+        }
 
         const isThrusting = (acc.x !== 0 || acc.y !== 0);
         audio.setThrust(isThrusting);
+
+        // Continuous Thrust Drain
+        if (isThrusting) {
+            energyRef.current = Math.max(0, energyRef.current - SHIP_STATS.thrustDrain);
+        }
 
         const isBoosting = keys.current.has('ShiftLeft');
         const finalThrust = isBoosting ? thrustPower * SHIP_STATS.boostMultiplier : thrustPower;
@@ -233,63 +277,77 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
         const scanSpeed = SHIP_STATS.baseScanSpeed * (1 + playerState.upgrades.scannerSpeedLevel * 0.2);
         const mouseDir = Vec.normalize({ x: dx, y: dy });
         
-        for (const ast of asteroids.current) {
-          ast.rotation += ast.rotationSpeed; // Always rotate
-          if (ast.scanned) continue;
+        // Only scan if energy > 0
+        if (energyRef.current > 0) {
+            for (const ast of asteroids.current) {
+            ast.rotation += ast.rotationSpeed; // Always rotate
+            if (ast.scanned) continue;
 
-          const distToAst = Vec.dist(shipPos.current, ast.position);
-          if (distToAst < scanRange) {
-             const dirToAst = Vec.normalize(Vec.sub(ast.position, shipPos.current));
-             const dot = mouseDir.x * dirToAst.x + mouseDir.y * dirToAst.y;
-             if (dot > 0.95) {
-                foundTarget = true;
-                if (scanTarget.current?.id !== ast.id) {
-                   scanTarget.current = ast;
-                   scanProgress.current = 0;
-                }
-                
-                if (isMouseDown.current) {
-                   const maxCargo = SHIP_STATS.baseCargo + (playerState.upgrades.cargoCapacityLevel * 2);
-                   // CHECK ENERGY & CARGO
-                   if (playerState.scannedItems.length < maxCargo && playerState.energy >= SHIP_STATS.scanEnergyCost) {
-                     
-                     scanProgress.current += 0.016 * 60 * (scanSpeed / 100);
-                     audio.setScan(true, scanProgress.current);
-                     
-                     if (scanProgress.current >= 1) {
-                        ast.scanned = true;
-                        setPlayerState(prev => ({
-                           ...prev,
-                           scannedItems: [...prev.scannedItems, ast],
-                           totalDiscoveries: prev.totalDiscoveries + 1,
-                           energy: prev.energy - SHIP_STATS.scanEnergyCost // DEDUCT ENERGY
-                        }));
-                        scanTarget.current = null;
-                        scanProgress.current = 0;
-                        audio.setScan(false);
-                        audio.playScanComplete();
+            const distToAst = Vec.dist(shipPos.current, ast.position);
+            if (distToAst < scanRange) {
+                const dirToAst = Vec.normalize(Vec.sub(ast.position, shipPos.current));
+                const dot = mouseDir.x * dirToAst.x + mouseDir.y * dirToAst.y;
+                if (dot > 0.95) {
+                    foundTarget = true;
+                    if (scanTarget.current?.id !== ast.id) {
+                    scanTarget.current = ast;
+                    scanProgress.current = 0;
+                    }
+                    
+                    if (isMouseDown.current) {
+                        const maxCargo = SHIP_STATS.baseCargo + (playerState.upgrades.cargoCapacityLevel * 2);
+                        
+                        // Check Cargo
+                        if (playerState.scannedItems.length < maxCargo) {
+                            
+                            // Continuous Scan Drain
+                            energyRef.current = Math.max(0, energyRef.current - SHIP_STATS.scanDrain);
 
-                        for(let k=0; k<10; k++) {
-                           particles.current.push({
-                              id: Math.random().toString(),
-                              position: ast.position,
-                              velocity: {x: (Math.random()-0.5)*5, y: (Math.random()-0.5)*5},
-                              life: 1, maxLife: 1, color: '#2dd4bf', size: 3
-                           });
+                            scanProgress.current += 0.016 * 60 * (scanSpeed / 100);
+                            audio.setScan(true, scanProgress.current);
+                            
+                            if (scanProgress.current >= 1) {
+                                ast.scanned = true;
+                                setPlayerState(prev => ({
+                                    ...prev,
+                                    scannedItems: [...prev.scannedItems, ast],
+                                    totalDiscoveries: prev.totalDiscoveries + 1,
+                                    energy: energyRef.current // Sync energy on successful event
+                                }));
+                                scanTarget.current = null;
+                                scanProgress.current = 0;
+                                audio.setScan(false);
+                                audio.playScanComplete();
+
+                                for(let k=0; k<10; k++) {
+                                particles.current.push({
+                                    id: Math.random().toString(),
+                                    position: ast.position,
+                                    velocity: {x: (Math.random()-0.5)*5, y: (Math.random()-0.5)*5},
+                                    life: 1, maxLife: 1, color: '#2dd4bf', size: 3
+                                });
+                                }
+                            }
+                        } else {
+                            // Cargo full
+                            audio.setScan(false);
                         }
-                     }
-                   } else {
-                       // Not enough energy or cargo full
-                       audio.setScan(false);
-                   }
-                } else {
-                   scanProgress.current = Math.max(0, scanProgress.current - 0.05);
-                   audio.setScan(false);
+                    } else {
+                        scanProgress.current = Math.max(0, scanProgress.current - 0.05);
+                        audio.setScan(false);
+                    }
+                    break; 
                 }
-                break; 
-             }
-          }
+            }
+            }
+        } else {
+            // No energy logic
+            if (isMouseDown.current && scanTarget.current) {
+                // Tried to scan but no energy
+                audio.setScan(false);
+            }
         }
+
         if (!foundTarget) {
           scanTarget.current = null;
           scanProgress.current = 0;
@@ -301,6 +359,17 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
            p.life -= 0.02;
         });
         particles.current = particles.current.filter(p => p.life > 0);
+        
+        // Sync energy ref to React state occasionally (every 30 frames ~0.5s)
+        // to keep UI updated without killing FPS
+        if (frameCount % 30 === 0) {
+            setPlayerState(prev => {
+                // Only update if difference is significant to avoid re-renders?
+                // Actually React handles identity checks, but object is new.
+                // Just sync.
+                return { ...prev, energy: energyRef.current };
+            });
+        }
       }
 
 
@@ -544,7 +613,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.translate(shipPos.current.x, shipPos.current.y);
       ctx.rotate(shipAngle.current);
       
-      const isThrusting = (keys.current.has('KeyW') || keys.current.has('ArrowUp'));
+      const isThrusting = (keys.current.has('KeyW') || keys.current.has('ArrowUp')) && energyRef.current > 0;
 
       // 1. Engine Thrust (Cone)
       if (isThrusting) {
@@ -591,16 +660,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.arc(5, 0, 6, 0, Math.PI*2);
       ctx.fill();
 
-      ctx.fillStyle = '#0ea5e9'; // Cyan lens
+      ctx.fillStyle = energyRef.current > 0 ? '#0ea5e9' : '#334155'; // Cyan lens if powered, dark if dead
       ctx.beginPath();
       ctx.arc(5, 0, 4, 0, Math.PI*2);
       ctx.fill();
       
       // Lens reflection
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(7, -1, 1.5, 0, Math.PI*2);
-      ctx.fill();
+      if (energyRef.current > 0) {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(7, -1, 1.5, 0, Math.PI*2);
+        ctx.fill();
+      }
 
       // 4. Detail Lines / Flaps
       ctx.strokeStyle = '#94a3b8';
@@ -622,26 +693,28 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
       ctx.fillRect(-22, -6, 4, 12);
 
       // Nav Lights
-      // Left/Port (Red)
-      ctx.fillStyle = '#ef4444';
-      ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 5;
-      ctx.beginPath();
-      ctx.arc(-10, -15, 1.5, 0, Math.PI*2);
-      ctx.fill();
-      
-      // Right/Starboard (Green)
-      ctx.fillStyle = '#22c55e';
-      ctx.shadowColor = '#22c55e';
-      ctx.beginPath();
-      ctx.arc(-10, 15, 1.5, 0, Math.PI*2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      if (energyRef.current > 0) {
+          // Left/Port (Red)
+          ctx.fillStyle = '#ef4444';
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 5;
+          ctx.beginPath();
+          ctx.arc(-10, -15, 1.5, 0, Math.PI*2);
+          ctx.fill();
+          
+          // Right/Starboard (Green)
+          ctx.fillStyle = '#22c55e';
+          ctx.shadowColor = '#22c55e';
+          ctx.beginPath();
+          ctx.arc(-10, 15, 1.5, 0, Math.PI*2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+      }
 
       ctx.restore();
       
       // Draw Scan FX
-      if (scanTarget.current && !scanTarget.current.scanned) {
+      if (scanTarget.current && !scanTarget.current.scanned && energyRef.current > 0) {
          ctx.save();
          ctx.translate(shipPos.current.x, shipPos.current.y);
          ctx.rotate(shipAngle.current);
@@ -735,10 +808,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, setGameState, player
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [gameState, playerState.upgrades, playerState.scannedItems, playerState.energy]); // Added playerState.energy dep
+  }, [gameState, playerState.upgrades, playerState.scannedItems, playerState.energy]);
 
   const distToStation = Vec.mag(shipPos.current);
-  const showDockPrompt = distToStation < STATION_RADIUS + 50 && gameState === GameState.PLAYING;
+  const showDockPrompt = distToStation < STATION_RADIUS + 50 && gameState === GameState.PLAYING && energyRef.current > 0;
 
   return (
     <>

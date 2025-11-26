@@ -4,6 +4,7 @@ import { Upgrades } from './types';
 export const WORLD_RADIUS = 5000;
 export const STATION_RADIUS = 300;
 export const MAX_ASTEROIDS = 300;
+export const TOW_COST = 500;
 
 export const UPGRADE_COSTS = {
   engine: (level: number) => 100 * Math.pow(2, level),
@@ -31,7 +32,11 @@ export const SHIP_STATS = {
   baseCargo: 5,
   baseEnergy: 100,
   energyPerLevel: 25,
-  scanEnergyCost: 20,
+  
+  // Continuous Drain Rates (Energy per frame at 60fps)
+  thrustDrain: 0.02, // Reduced from 0.15 (~1.2 energy/sec)
+  idleDrain: 0.002,   // Reduced from 0.01 (~0.12 energy/sec)
+  scanDrain: 0.1,   // Reduced from 0.25 (~6 energy/sec)
 };
 
 // View Settings

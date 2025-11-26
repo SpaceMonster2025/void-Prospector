@@ -5,6 +5,7 @@ import StationMenu from './components/StationMenu';
 import UIOverlay from './components/UIOverlay';
 import { GameState, PlayerState } from './types';
 import { INITIAL_UPGRADES, SHIP_STATS } from './constants';
+import { TriangleAlert, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -38,7 +39,23 @@ const App: React.FC = () => {
   }, [playerState]);
 
   const startGame = () => {
+    // Reset energy on new game if dead
+    if (playerState.energy <= 0) {
+       setPlayerState(prev => ({...prev, energy: prev.maxEnergy}));
+    }
     setGameState(GameState.PLAYING);
+  };
+
+  const resetGame = () => {
+      setPlayerState({
+       credits: 0,
+       upgrades: INITIAL_UPGRADES,
+       scannedItems: [],
+       totalDiscoveries: 0,
+       energy: SHIP_STATS.baseEnergy,
+       maxEnergy: SHIP_STATS.baseEnergy,
+      });
+      setGameState(GameState.PLAYING);
   };
 
   return (
@@ -54,7 +71,11 @@ const App: React.FC = () => {
 
       {/* UI Layer */}
       {gameState === GameState.PLAYING && (
-        <UIOverlay playerState={playerState} />
+        <UIOverlay 
+            playerState={playerState} 
+            setPlayerState={setPlayerState}
+            setGameState={setGameState}
+        />
       )}
 
       {/* Station Menu */}
@@ -89,6 +110,29 @@ const App: React.FC = () => {
              Use WASD to Fly • MOUSE to Aim • CLICK to Scan
            </div>
         </div>
+      )}
+
+      {/* Game Over Screen */}
+      {gameState === GameState.GAME_OVER && (
+          <div className="absolute inset-0 bg-red-950/90 flex flex-col items-center justify-center text-center z-50 animate-in fade-in duration-1000">
+             <TriangleAlert className="w-24 h-24 text-red-500 mb-6 animate-pulse" />
+             <h1 className="text-5xl font-bold text-red-500 mb-2 tracking-widest">CRITICAL FAILURE</h1>
+             <p className="text-red-200 text-xl mb-8 max-w-md">
+                 Energy cells depleted. Emergency beacon ignored. Drone lost to the void.
+             </p>
+             
+             <div className="bg-black/50 p-6 rounded mb-8 border border-red-800">
+                <div className="text-slate-400 text-sm uppercase">Final Stats</div>
+                <div className="text-2xl text-white font-mono">{playerState.totalDiscoveries} Discoveries Logged</div>
+             </div>
+
+             <button 
+                onClick={resetGame}
+                className="flex items-center px-8 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg transition-all"
+             >
+                <RefreshCw className="w-5 h-5 mr-2" /> REBOOT SYSTEM
+             </button>
+          </div>
       )}
     </div>
   );
