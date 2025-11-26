@@ -38,7 +38,7 @@ export const SHIP_STATS = {
   // Continuous Drain Rates (Energy per frame at 60fps)
   thrustDrain: 0.02, 
   idleDrain: 0.002,   
-  scanDrain: 0.1,   
+  scanDrain: 0.05,   
   
   // Solar Recharge
   baseSolarRecharge: 0.0005,

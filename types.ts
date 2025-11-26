@@ -61,15 +61,15 @@ export interface Particle {
 }
 
 export const MINERAL_VALUES: Record<MineralType, number> = {
-  [MineralType.IRON]: 10,
-  [MineralType.NICKEL]: 15,
-  [MineralType.SILICON]: 20,
-  [MineralType.COBALT]: 50,
-  [MineralType.GOLD]: 100,
-  [MineralType.IRIDIUM]: 250,
-  [MineralType.NEUTRONIUM]: 500,
-  [MineralType.PSIONIC_CRYSTAL]: 1000,
-  [MineralType.ARTIFACT]: 5000,
+  [MineralType.IRON]: 16,
+  [MineralType.NICKEL]: 24,
+  [MineralType.SILICON]: 32,
+  [MineralType.COBALT]: 80,
+  [MineralType.GOLD]: 160,
+  [MineralType.IRIDIUM]: 400,
+  [MineralType.NEUTRONIUM]: 800,
+  [MineralType.PSIONIC_CRYSTAL]: 1600,
+  [MineralType.ARTIFACT]: 8000,
 };
 
 export const MINERAL_RARITY_COLOR: Record<MineralType, string> = {
